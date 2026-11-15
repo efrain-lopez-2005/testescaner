@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Escáner de códigos</title>
+
+  <!-- Librería de lectura de códigos de barras -->
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --txt:#e2e8f0; --mut:#94a3b8; --ok:#22c55e; --err:#ef4444; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--txt); }
+    main { max-width:560px; margin:0 auto; padding:16px; }
+    h1 { font-size:1.25rem; margin:4px 0 12px; }
+    .card { background:var(--card); border-radius:14px; padding:14px; margin-bottom:12px; }
+    .visor { position:relative; background:#000; border-radius:12px; overflow:hidden; aspect-ratio:4/3; }
+    video { width:100%; height:100%; object-fit:cover; display:block; }
+    .guia { position:absolute; left:8%; right:8%; top:50%; height:2px; background:rgba(239,68,68,.85);
+            box-shadow:0 0 8px rgba(239,68,68,.9); pointer-events:none; display:none; }
+    .visor.activo .guia { display:block; }
+    .placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+                   color:var(--mut); text-align:center; padding:20px; }
+    .visor.activo .placeholder { display:none; }
+    .fila { display:flex; gap:10px; margin-top:12px; }
+    button { flex:1; padding:14px; font-size:1rem; font-weight:600; border:0; border-radius:10px; color:#fff; cursor:pointer; }
+    button:disabled { opacity:.4; cursor:not-allowed; }
+    #btnIniciar { background:var(--ok); } #btnDetener { background:var(--err); }
+    select { width:100%; padding:12px; font-size:1rem; border-radius:10px; border:1px solid #334155; background:#0f172a; color:var(--txt); }
+    label { font-size:.85rem; color:var(--mut); display:block; margin-bottom:6px; }
+    .estado { font-size:.9rem; color:var(--mut); margin-top:10px; min-height:1.2em; }
+    .estado.ok { color:var(--ok); } .estado.error { color:var(--err); }
+    .resultado { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:1.4rem; word-break:break-all;
+                 background:#0f172a; border-radius:10px; padding:12px; min-height:3rem; }
+    .meta { font-size:.8rem; color:var(--mut); margin-top:6px; }
+    ul { list-style:none; padding:0; margin:0; max-height:220px; overflow:auto; }
+    li { padding:8px 4px; border-bottom:1px solid #334155; font-family:ui-monospace,monospace; font-size:.9rem;
+         display:flex; justify-content:space-between; gap:8px; }
+    li small { color:var(--mut); white-space:nowrap; } li.fallo { color:var(--err); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>📦 Escáner de códigos</h1>
+
+  <div class="card">
+    <div class="visor" id="visor">
+      <video id="video" playsinline muted></video>
+      <div class="guia"></div>
+      <div class="placeholder">Pulsa «Iniciar cámara» para comenzar.<br>Coloca el código horizontal y bien iluminado.</div>
+    </div>
+    <div style="margin-top:12px">
+      <label for="selCamara">Cámara</label>
+      <select id="selCamara" disabled><option value="">(se listarán al iniciar)</option></select>
+    </div>
+    <div class="fila">
+      <button id="btnIniciar">▶ Iniciar cámara</button>
+      <button id="btnDetener" disabled>■ Detener</button>
+    </div>
+    <div class="estado" id="estado">Cámara apagada.</div>
+  </div>
+
+  <div class="card">
+    <label>Último código leído</label>
+    <div class="resultado" id="resultado">—</div>
+    <div class="meta" id="meta"></div>
+  </div>
+
+  <div class="card">
+    <label>Historial de esta sesión</label>
+    <ul id="historial"></ul>
+  </div>
+</main>
+
+<script>
+/* ===========================================================
+ *  CONFIGURACIÓN  ->  PEGA AQUÍ LA URL /exec DE APPS SCRIPT
+ * =========================================================== */
+const URL_API = 'https://script.google.com/macros/s/AKfycbzZlKhbToGWDv92tZn2MNU7TK3QxAhcZsqtA9MKVhPTmZOZZtprr9ylGqhFDOjdWwds/exec';
+
+/* ===========================================================
+ *  Decodificador Code 39 Full ASCII
+ *  +A..+Z -> a..z | /A../O -> ! " # $ % & ' ( ) * + , - . / | /Z -> :
+ *  %F..%J -> ; < = > ? | %K..%O -> [ \ ] ^ _ | %P..%T -> { | } ~ DEL
+ *  %V -> @ | %W -> ` | $A..$Z -> control 1-26 | %A..%E -> 27-31
+ *  Si hay un par inválido devuelve null (se conserva el texto crudo).
+ * =========================================================== */
+function decodificarFullASCII(crudo) {
+  let salida = '';
+  for (let i = 0; i < crudo.length; i++) {
+    const c = crudo[i];
+    if (c !== '+' && c !== '$' && c !== '%' && c !== '/') { salida += c; continue; }
+    const n = crudo[i + 1];
+    if (n === undefined) return null;
+    const k = n.charCodeAt(0);
+    let cod = -1;
+    if (c === '+') { if (k >= 65 && k <= 90) cod = k + 32; }
+    else if (c === '$') { if (k >= 65 && k <= 90) cod = k - 64; }
+    else if (c === '/') { if (k >= 65 && k <= 79) cod = k - 32; else if (n === 'Z') cod = 58; }
+    else if (c === '%') {
+      if (k >= 65 && k <= 69) cod = k - 38;
+      else if (k >= 70 && k <= 74) cod = k - 11;
+      else if (k >= 75 && k <= 79) cod = k + 16;
+      else if (k >= 80 && k <= 84) cod = k + 43;
+      else if (n === 'U') cod = 0;
+      else if (n === 'V') cod = 64;
+      else if (n === 'W') cod = 96;
+      else if (n === 'X' || n === 'Y' || n === 'Z') cod = 127;
+    }
+    if (cod < 0) return null;
+    salida += String.fromCharCode(cod);
+    i++;
+  }
+  return salida;
+}
+
+/* ===========================================================
+ *  Referencias y estado
+ * =========================================================== */
+const $ = id => document.getElementById(id);
+const video = $('video'), visor = $('visor'), selCamara = $('selCamara');
+const btnIniciar = $('btnIniciar'), btnDetener = $('btnDetener');
+const elEstado = $('estado'), elResultado = $('resultado'), elMeta = $('meta'), elHistorial = $('historial');
+
+const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = ZXing;
+const hints = new Map();
+hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_39]);
+hints.set(DecodeHintType.TRY_HARDER, true);
+
+let lector = null, corriendo = false;
+let ultimo = { texto: '', t: 0 };
+const ANTIREBOTE_MS = 3000;
+
+function estado(msg, clase) { elEstado.textContent = msg; elEstado.className = 'estado' + (clase ? ' ' + clase : ''); }
+
+/* ===========================================================
+ *  Cámara (solo se activa con el botón)
+ * =========================================================== */
+async function cargarCamaras() {
+  const temp = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  temp.getTracks().forEach(t => t.stop());
+
+  const disp = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  if (!disp.length) throw new Error('No se encontró ninguna cámara.');
+
+  const previa = selCamara.value;
+  selCamara.innerHTML = '';
+  disp.forEach((d, i) => {
+    const o = document.createElement('option');
+    o.value = d.deviceId; o.textContent = d.label || ('Cámara ' + (i + 1));
+    selCamara.appendChild(o);
+  });
+  if (previa && disp.some(d => d.deviceId === previa)) selCamara.value = previa;
+  else {
+    const tra = disp.find(d => /back|rear|trasera|environment|posterior/i.test(d.label));
+    selCamara.value = (tra || disp[disp.length - 1]).deviceId;
+  }
+  selCamara.disabled = disp.length < 2;
+}
+
+async function iniciar() {
+  if (corriendo) return;
+  btnIniciar.disabled = true;
+  estado('Solicitando permiso de cámara…');
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Este navegador no soporta cámara (se requiere HTTPS).');
+    await cargarCamaras();
+    lector = new BrowserMultiFormatReader(hints, 300);
+    await lector.decodeFromConstraints(
+      { audio: false, video: { deviceId: { exact: selCamara.value }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+      video,
+      (resultado) => { if (resultado) procesarLectura(resultado); }
+    );
+    corriendo = true;
+    visor.classList.add('activo');
+    btnDetener.disabled = false;
+    estado('Escaneando… apunta al código de barras.', 'ok');
+  } catch (e) {
+    console.error(e);
+    detener(true);
+    let msg = e.message || String(e);
+    if (e.name === 'NotAllowedError') msg = 'Permiso de cámara denegado. Actívalo en los ajustes del navegador y pulsa «Iniciar» otra vez.';
+    if (e.name === 'NotFoundError') msg = 'No se encontró ninguna cámara.';
+    if (e.name === 'NotReadableError') msg = 'La cámara está siendo usada por otra aplicación.';
+    estado('⚠ ' + msg, 'error');
+  } finally {
+    if (!corriendo) btnIniciar.disabled = false;
+  }
+}
+
+function detener(silencioso) {
+  if (lector) { try { lector.reset(); } catch (_) {} lector = null; }
+  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  corriendo = false;
+  visor.classList.remove('activo');
+  btnIniciar.disabled = false;
+  btnDetener.disabled = true;
+  if (silencioso !== true) estado('Cámara detenida.');
+}
+
+/* ===========================================================
+ *  Procesar lectura y enviar a Google Sheets
+ * =========================================================== */
+function procesarLectura(resultado) {
+  const crudo = resultado.getText();
+  const ahora = Date.now();
+  if (crudo === ultimo.texto && ahora - ultimo.t < ANTIREBOTE_MS) return;
+  ultimo = { texto: crudo, t: ahora };
+
+  const ext = decodificarFullASCII(crudo);
+  const codigo = ext !== null ? ext : crudo;
+  const tipo = 'CODE_39' + (ext !== null && ext !== crudo ? ' (Full ASCII)' : '');
+
+  elResultado.textContent = visible(codigo);
+  elMeta.textContent = 'Formato: ' + tipo + (codigo !== crudo ? '   |   Crudo: ' + crudo : '');
+  if (navigator.vibrate) navigator.vibrate(120);
+  pitido();
+
+  const li = agregarHistorial(codigo, 'enviando…');
+  estado('Guardando en Google Sheets…');
+  enviar(codigo, tipo)
+    .then(res => {
+      if (res && res.ok) {
+        li.querySelector('small').textContent = '✓ fila ' + res.fila;
+        estado('✓ Guardado (fila ' + res.fila + '). Sigue escaneando…', 'ok');
+      } else fallo(li, res && res.error);
+    })
+    .catch(err => fallo(li, err && err.message));
+}
+
+function enviar(codigo, tipo) {
+  if (!URL_API || URL_API.indexOf('PEGA_AQUI') !== -1) return Promise.reject(new Error('Falta configurar URL_API en index.html'));
+  // Sin cabeceras personalizadas: evita problemas de CORS con Apps Script
+  return fetch(URL_API, { method: 'POST', body: JSON.stringify({ codigo: codigo, tipo: tipo }) }).then(r => r.json());
+}
+
+function fallo(li, msg) {
+  li.classList.add('fallo');
+  li.querySelector('small').textContent = '✗ error';
+  estado('⚠ No se pudo guardar: ' + (msg || 'error desconocido'), 'error');
+}
+
+function visible(s) {
+  return s.replace(/[\x00-\x1F\x7F]/g, ch => { const n = ch.charCodeAt(0); return n === 127 ? '␡' : String.fromCharCode(0x2400 + n); });
+}
+
+function agregarHistorial(codigo, st) {
+  const li = document.createElement('li');
+  const a = document.createElement('span'); a.textContent = visible(codigo);
+  const b = document.createElement('small'); b.textContent = st;
+  li.append(a, b);
+  elHistorial.prepend(li);
+  return li;
+}
+
+function pitido() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.frequency.value = 1000; g.gain.value = 0.1;
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + 0.12);
+    osc.onended = () => ctx.close();
+  } catch (_) {}
+}
+
+/* ===========================================================
+ *  Eventos
+ * =========================================================== */
+btnIniciar.addEventListener('click', iniciar);
+btnDetener.addEventListener('click', () => detener());
+selCamara.addEventListener('change', async () => { if (corriendo) { detener(true); await iniciar(); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden && corriendo) detener(); });
+window.addEventListener('pagehide', () => detener(true));
+</script>
+</body>
+</html>
