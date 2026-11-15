@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de cámara</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:16px;background:#111;color:#eee}
+  video{width:100%;max-width:480px;background:#000;border-radius:8px}
+  button{padding:14px 20px;font-size:1rem;margin:10px 0}
+  pre{background:#222;padding:10px;border-radius:8px;white-space:pre-wrap;word-break:break-all}
+</style>
+</head>
+<body>
+<h3>Prueba de cámara</h3>
+<button id="b">Probar cámara</button>
+<video id="v" playsinline muted></video>
+<pre id="log"></pre>
+<script>
+const log = t => document.getElementById('log').textContent += t + '\n';
+
+// Datos del entorno
+log('URL: ' + location.href);
+log('Contexto seguro (HTTPS/localhost): ' + window.isSecureContext);
+log('En iframe: ' + (window.self !== window.top));
+log('mediaDevices disponible: ' + !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+log('Navegador: ' + navigator.userAgent);
+log('---');
+
+document.getElementById('b').onclick = async () => {
+  try {
+    // Estado del permiso (si el navegador lo expone)
+    if (navigator.permissions) {
+      try {
+        const p = await navigator.permissions.query({ name: 'camera' });
+        log('Estado del permiso de cámara: ' + p.state);
+      } catch (_) { log('Estado del permiso: no disponible en este navegador'); }
+    }
+    const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    document.getElementById('v').srcObject = s;
+    await document.getElementById('v').play();
+    log('✅ CÁMARA FUNCIONANDO');
+    const d = await navigator.mediaDevices.enumerateDevices();
+    d.filter(x => x.kind === 'videoinput').forEach(x => log('Cámara: ' + (x.label || '(sin nombre)')));
+  } catch (e) {
+    log('❌ ERROR: ' + e.name + ' - ' + e.message);
+  }
+};
+</script>
+</body>
+</html>
