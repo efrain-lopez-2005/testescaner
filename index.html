@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Escáner en Vivo - Asesorías MAE</title>
+    <title>Control de Registro</title>
     <script type="text/javascript" src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
         :root {
@@ -28,6 +28,7 @@
         /* Botones */
         .btn { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; }
         .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:disabled { background: #444; cursor: not-allowed; }
         .btn-encender { background: #28a745; color: white; margin-bottom: 12px; }
         .btn-apagar { background: #dc3545; color: white; margin-bottom: 12px; }
         .btn-salir { background: transparent; border: 1px solid #555; color: #aaa; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; }
@@ -50,29 +51,28 @@
 <body>
 
 <div class="container">
-    <h2>📋 Asesorías Grupales MAE</h2>
-
-    <!-- PANTALLA 1: ACCESO RESTRINGIDO -->
-    <div id="pantallaLogin" class="card">
-        <h3 style="margin-top: 0; color: white;">🔒 Acceso Institucional</h3>
-        <p style="font-size: 13px; color: #bbb;">Ingresa tu correo institucional y la clave del equipo MAE para habilitar el escáner.</p>
+    <!-- PANTALLA 1: ACCESO NEUTRO SIN PISTAS -->
+    <div id="pantallaLogin" class="card" style="margin-top: 30px;">
+        <h3 style="margin-top: 0; color: white; text-align: center;">🔒 Iniciar Sesión</h3>
         
         <div class="form-group">
-            <label for="loginCorreo">Correo Institucional (@tec.mx):</label>
-            <input type="email" id="loginCorreo" placeholder="A0XXXXXXX@tec.mx" required>
+            <label for="loginCorreo">Ingresa tu correo:</label>
+            <input type="email" id="loginCorreo" placeholder="correo@ejemplo.com" autocomplete="email" required>
         </div>
         
         <div class="form-group">
-            <label for="loginClave">Clave de Acceso MAE:</label>
-            <input type="password" id="loginClave" placeholder="Ingresa la clave" required>
+            <label for="loginClave">Clave:</label>
+            <input type="password" id="loginClave" placeholder="••••••••" required>
         </div>
 
-        <button id="btnIngresar" class="btn btn-primary">Desbloquear Escáner</button>
-        <div id="loginError" style="color: #ff6b6b; font-size: 13px; margin-top: 10px; text-align: center;"></div>
+        <button id="btnIngresar" class="btn btn-primary">Ingresar</button>
+        <div id="loginError" style="color: #ff6b6b; font-size: 13px; margin-top: 12px; text-align: center; min-height: 18px;"></div>
     </div>
 
-    <!-- PANTALLA 2: APLICACIÓN PRINCIPAL (OCULTA HASTA INICIAR SESIÓN) -->
+    <!-- PANTALLA 2: APLICACIÓN PRINCIPAL (SOLO SE MUESTRA SI EL SERVIDOR VALIDA) -->
     <div id="pantallaApp" style="display: none;">
+        <h2>📋 Asesorías Grupales MAE</h2>
+        
         <div class="header-bar">
             <span id="usuarioActivoTxt">Sesión: ---</span>
             <button id="btnCerrarSesion" class="btn-salir">Cerrar sesión</button>
@@ -165,47 +165,84 @@
     // ⚠️ PEGA AQUÍ LA URL DE TU APPS SCRIPT (/exec)
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzZlKhbToGWDv92tZn2MNU7TK3QxAhcZsqtA9MKVhPTmZOZZtprr9ylGqhFDOjdWwds/exec";
 
-    // Elementos de Login
     const pantallaLogin = document.getElementById('pantallaLogin');
     const pantallaApp = document.getElementById('pantallaApp');
     const loginCorreo = document.getElementById('loginCorreo');
     const loginClave = document.getElementById('loginClave');
+    const btnIngresar = document.getElementById('btnIngresar');
     const loginError = document.getElementById('loginError');
     const usuarioActivoTxt = document.getElementById('usuarioActivoTxt');
 
-    // Comprobar si ya hay una sesión guardada en el teléfono
+    // Al cargar, si hay datos guardados, re-validar con el servidor silenciosamente
     window.addEventListener('load', () => {
-        const correoGuardado = localStorage.getItem('mae_correo');
-        const claveGuardada = localStorage.getItem('mae_clave');
+        const correoGuardado = localStorage.getItem('app_correo');
+        const claveGuardada = localStorage.getItem('app_clave');
         if (correoGuardado && claveGuardada) {
-            mostrarApp(correoGuardado);
+            validarCredencialesConServidor(correoGuardado, claveGuardada, true);
         }
     });
 
-    document.getElementById('btnIngresar').addEventListener('click', () => {
+    btnIngresar.addEventListener('click', () => {
         const correo = loginCorreo.value.trim().toLowerCase();
         const clave = loginClave.value.trim();
 
-        if (!correo.endsWith("@tec.mx")) {
-            loginError.innerText = "⚠️ Debes usar un correo institucional (@tec.mx).";
-            return;
-        }
-        if (!clave) {
-            loginError.innerText = "⚠️ Ingresa la clave de acceso.";
+        if (!correo || !clave) {
+            loginError.innerText = "Completa ambos campos.";
             return;
         }
 
-        // Guardar credenciales localmente en el celular
-        localStorage.setItem('mae_correo', correo);
-        localStorage.setItem('mae_clave', clave);
-        loginError.innerText = "";
-        mostrarApp(correo);
+        validarCredencialesConServidor(correo, clave, false);
     });
+
+    async function validarCredencialesConServidor(correo, clave, esAutoLogin) {
+        if (!esAutoLogin) {
+            btnIngresar.disabled = true;
+            btnIngresar.innerText = "Verificando...";
+            loginError.innerText = "";
+        }
+
+        try {
+            // Enviamos text/plain para que Apps Script lea el JSON sin bloqueos CORS preflight
+            const response = await fetch(WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    accion: "login",
+                    correo: correo,
+                    clave: clave
+                })
+            });
+
+            const resultado = await response.json();
+
+            if (resultado.status === "success") {
+                localStorage.setItem('app_correo', correo);
+                localStorage.setItem('app_clave', clave);
+                mostrarApp(correo);
+            } else {
+                // Si falló (clave incorrecta o correo no autorizado), limpiar memoria y bloquear
+                localStorage.removeItem('app_correo');
+                localStorage.removeItem('app_clave');
+                if (!esAutoLogin) {
+                    loginError.innerText = "❌ " + (resultado.message || "Acceso denegado.");
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            if (!esAutoLogin) {
+                loginError.innerText = "❌ Error de conexión al verificar.";
+            }
+        } finally {
+            btnIngresar.disabled = false;
+            btnIngresar.innerText = "Ingresar";
+        }
+    }
 
     document.getElementById('btnCerrarSesion').addEventListener('click', () => {
         apagarCamara();
-        localStorage.removeItem('mae_correo');
-        localStorage.removeItem('mae_clave');
+        localStorage.removeItem('app_correo');
+        localStorage.removeItem('app_clave');
+        loginClave.value = "";
         pantallaApp.style.display = "none";
         pantallaLogin.style.display = "block";
     });
@@ -217,7 +254,7 @@
         document.getElementById('fecha').valueAsDate = new Date();
     }
 
-    // Lógica del Escáner en Vivo
+    // --- LÓGICA DEL ESCÁNER EN VIVO ---
     const codeReader = new ZXing.BrowserBarcodeReader();
     const btnToggleCamara = document.getElementById('btnToggleCamara');
     const videoContainer = document.getElementById('video-container');
@@ -284,10 +321,10 @@
         statusEl.innerText = "Cámara apagada";
     }
 
-    function procesarAsistencia(matricula) {
+    async function procesarAsistencia(matricula) {
         reproducirBip();
         matriculaEl.innerText = matricula;
-        statusEl.innerText = "📤 Enviando registro...";
+        statusEl.innerText = "📤 Guardando registro...";
 
         const fechaRaw = document.getElementById('fecha').value;
         let fechaFormateada = fechaRaw;
@@ -297,8 +334,9 @@
         }
 
         const datosAsistencia = {
-            correo: localStorage.getItem('mae_correo'),
-            clave: localStorage.getItem('mae_clave'),
+            accion: "registrar",
+            correo: localStorage.getItem('app_correo'),
+            clave: localStorage.getItem('app_clave'),
             fecha: fechaFormateada,
             periodo: document.getElementById('periodo').value,
             alumnoMae: document.getElementById('alumnoMae').value,
@@ -308,29 +346,35 @@
             matricula: matricula
         };
 
-        totalRegistrados++;
-        contadorEl.innerText = totalRegistrados;
-        const li = document.createElement('li');
-        const horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-        li.innerHTML = `<span><b>${matricula}</b> (${datosAsistencia.materia})</span> <span style="color:#888;">${horaActual}</span>`;
-        listaEl.prepend(li);
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(datosAsistencia)
+            });
 
-        fetch(WEB_APP_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(datosAsistencia)
-        })
-        .then(() => {
-            statusEl.innerText = "✅ ¡Registro enviado!";
-            setTimeout(() => { 
-                if(camaraActiva) statusEl.innerText = "Listo para el siguiente alumno..."; 
-            }, 2000);
-        })
-        .catch(error => {
-            statusEl.innerText = "❌ Error de conexión";
+            const resJson = await response.json();
+
+            if (resJson.status === "success") {
+                totalRegistrados++;
+                contadorEl.innerText = totalRegistrados;
+                const li = document.createElement('li');
+                const horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                li.innerHTML = `<span><b>${matricula}</b> (${datosAsistencia.materia})</span> <span style="color:#888;">${horaActual}</span>`;
+                listaEl.prepend(li);
+
+                statusEl.innerText = "✅ ¡Guardado en Google Sheets!";
+            } else {
+                statusEl.innerText = "❌ Rechazado: " + resJson.message;
+            }
+        } catch (error) {
+            statusEl.innerText = "❌ Error de conexión al guardar";
             console.error("Error:", error);
-        });
+        }
+
+        setTimeout(() => { 
+            if(camaraActiva) statusEl.innerText = "Listo para el siguiente alumno..."; 
+        }, 2000);
     }
 
     function reproducirBip() {
