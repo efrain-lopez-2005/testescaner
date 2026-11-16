@@ -3,96 +3,262 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Escáner Vinculado a Google Sheets</title>
-    <!-- Librería de códigos de barras -->
+    <title>Registro Asesorías Grupales - MAE</title>
     <script type="text/javascript" src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: white; margin: 0; padding: 20px; }
-        h2 { color: #00ffcc; }
-        #video-container { width: 100%; max-width: 500px; margin: 0 auto; position: relative; border-radius: 12px; overflow: hidden; border: 3px solid #00ffcc; }
+        :root {
+            --primary: #0055a5;
+            --accent: #00ffcc;
+            --bg: #121212;
+            --card: #1e1e1e;
+            --text: #ffffff;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
+        h2 { color: var(--accent); margin-bottom: 5px; text-align: center; }
+        .container { width: 100%; max-width: 500px; }
+        .card { background: var(--card); padding: 18px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .form-group { margin-bottom: 12px; text-align: left; }
+        label { display: block; font-size: 13px; color: #bbb; margin-bottom: 4px; font-weight: 600; }
+        select, input[type="date"] { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: white; font-size: 15px; box-sizing: border-box; }
+        select:focus, input:focus { outline: none; border-color: var(--accent); }
+        
+        /* Controles de Cámara */
+        .btn-camara { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; margin-bottom: 12px; }
+        .btn-encender { background: #28a745; color: white; }
+        .btn-apagar { background: #dc3545; color: white; }
+        
+        #video-container { width: 100%; border-radius: 10px; overflow: hidden; border: 2px solid var(--accent); display: none; background: #000; position: relative; }
         video { width: 100%; height: auto; display: block; }
-        #resultado-box { margin-top: 20px; background: #1e1e1e; padding: 15px; border-radius: 10px; display: inline-block; width: 90%; max-width: 500px; box-shadow: 0px 4px 10px rgba(0,0,0,0.5); }
-        .ultimo-codigo { font-size: 24px; color: #ffeb3b; font-weight: bold; margin-top: 5px; }
-        .status-envio { font-size: 14px; color: #00ffcc; margin-top: 8px; }
+        
+        /* Resultados y Lista */
+        .resultado-actual { text-align: center; padding: 10px; background: #252525; border-radius: 8px; margin-top: 10px; }
+        .matricula-txt { font-size: 26px; color: #ffeb3b; font-weight: bold; letter-spacing: 1px; }
+        .status-txt { font-size: 14px; color: var(--accent); margin-top: 4px; min-height: 20px; }
+        
+        ul { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; }
+        li { padding: 8px 10px; border-bottom: 1px solid #333; font-size: 14px; display: flex; justify-content: space-between; }
+        li:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
 
-    <h2>⚡ Escáner Rápido -> Google Sheets</h2>
-    <p>Apunta el código de barras. Se registrará automáticamente.</p>
+<div class="container">
+    <h2>📋 Asesorías Grupales MAE</h2>
 
-    <div id="video-container">
-        <video id="video"></video>
+    <!-- SECCIÓN 1: DATOS DE LA SESIÓN -->
+    <div class="card">
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="fecha">Fecha:</label>
+                <input type="date" id="fecha" required>
+            </div>
+            <div class="form-group">
+                <label for="periodo">Periodo:</label>
+                <select id="periodo">
+                    <option value="1P">1P</option>
+                    <option value="2P">2P</option>
+                    <option value="3P">3P</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="alumnoMae">Alumno MAE:</label>
+            <select id="alumnoMae">
+                <!-- 👇 EDITA AQUÍ TU LISTA DE ALUMNOS MAE 👇 -->
+                <option value="Efraín (Ejemplo)">Efraín (Ejemplo)</option>
+                <option value="Ana García">Ana García</option>
+                <option value="Carlos López">Carlos López</option>
+                <option value="Sofía Martínez">Sofía Martínez</option>
+            </select>
+        </div>
+
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="campus">Campus:</label>
+                <select id="campus">
+                    <option value="MTY">MTY</option>
+                    <option value="QRO">QRO</option>
+                    <option value="GDL">GDL</option>
+                    <option value="MEX">MEX</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="formato">Formato:</label>
+                <select id="formato">
+                    <option value="Presencial">Presencial</option>
+                    <option value="Virtual">Virtual</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="materia">Materia:</label>
+            <select id="materia">
+                <!-- 👇 EDITA AQUÍ TU LISTA DE MATERIAS 👇 -->
+                <option value="Física I">Física I</option>
+                <option value="Matemáticas I">Matemáticas I</option>
+                <option value="Ecuaciones Diferenciales">Ecuaciones Diferenciales</option>
+                <option value="Estática">Estática</option>
+                <option value="Programación">Programación</option>
+            </select>
+        </div>
     </div>
 
-    <div id="resultado-box">
-        <div>Último código escaneado:</div>
-        <div id="codigoDetectado" class="ultimo-codigo">Esperando...</div>
-        <div id="statusEnvio" class="status-envio"></div>
+    <!-- SECCIÓN 2: ESCÁNER Y CÁMARA -->
+    <div class="card">
+        <button id="btnToggleCamara" class="btn-camara btn-encender">📷 Encender Cámara</button>
+        
+        <div id="video-container">
+            <video id="video"></video>
+        </div>
+
+        <div class="resultado-actual">
+            <div style="font-size: 12px; color: #aaa;">Última Matrícula Escaneada:</div>
+            <div id="matriculaDetectada" class="matricula-txt">---</div>
+            <div id="statusEnvio" class="status-txt">Cámara apagada</div>
+        </div>
     </div>
 
-    <script>
-        // ⚠️ PEGA AQUÍ LA URL DE TU APPS SCRIPT (/exec)
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzZlKhbToGWDv92tZn2MNU7TK3QxAhcZsqtA9MKVhPTmZOZZtprr9ylGqhFDOjdWwds/exec";
+    <!-- SECCIÓN 3: HISTORIAL RÁPIDO DE LA SESIÓN -->
+    <div class="card">
+        <label style="margin-bottom: 8px;">Asistentes registrados en esta sesión (<span id="contador">0</span>):</label>
+        <ul id="listaAsistentes"></ul>
+    </div>
+</div>
 
-        let ultimoCodigoLeido = "";
-        let tiempoUltimoEscaneo = 0;
+<script>
+    // ⚠️ PEGA AQUÍ LA URL DE TU APPS SCRIPT (/exec)
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzZlKhbToGWDv92tZn2MNU7TK3QxAhcZsqtA9MKVhPTmZOZZtprr9ylGqhFDOjdWwds/exec";
 
-        window.addEventListener('load', function () {
-            const codeReader = new ZXing.BrowserBarcodeReader();
-            const elementoResultado = document.getElementById('codigoDetectado');
-            const statusEnvio = document.getElementById('statusEnvio');
-            
-            codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
-                if (result) {
-                    const codigoLeido = result.text;
-                    const ahora = Date.now();
-                    
-                    // FILTRO ANTI-DUPLICADOS: Evita reenviar el mismo código si pasan menos de 3 segundos
-                    if (codigoLeido !== ultimoCodigoLeido || (ahora - tiempoUltimoEscaneo > 3000)) {
-                        ultimoCodigoLeido = codigoLeido;
-                        tiempoUltimoEscaneo = ahora;
-                        
-                        elementoResultado.innerText = codigoLeido;
-                        reproducirBip();
-                        
-                        // Enviar a Google Sheets de forma silenciosa (en segundo plano)
-                        statusEnvio.innerText = "📤 Guardando en Google Sheets...";
-                        
-                        fetch(WEB_APP_URL, {
-                            method: 'POST',
-                            mode: 'no-cors', // Evita bloqueos de seguridad del navegador
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ codigo: codigoLeido })
-                        })
-                        .then(() => {
-                            statusEnvio.innerText = "✅ ¡Guardado con éxito!";
-                            setTimeout(() => { statusEnvio.innerText = ""; }, 2000);
-                        })
-                        .catch(error => {
-                            statusEnvio.innerText = "❌ Error al guardar";
-                            console.error("Error:", error);
-                        });
-                    }
-                }
-            }).catch(err => {
-                console.error("Error de cámara: ", err);
-                alert("No se pudo iniciar la cámara.");
-            });
-        });
+    // Poner la fecha de hoy por defecto en el input de fecha
+    document.getElementById('fecha').valueAsDate = new Date();
 
-        function reproducirBip() {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + 0.1);
+    const codeReader = new ZXing.BrowserBarcodeReader();
+    const btnToggleCamara = document.getElementById('btnToggleCamara');
+    const videoContainer = document.getElementById('video-container');
+    const matriculaEl = document.getElementById('matriculaDetectada');
+    const statusEl = document.getElementById('statusEnvio');
+    const listaEl = document.getElementById('listaAsistentes');
+    const contadorEl = document.getElementById('contador');
+
+    let camaraActiva = false;
+    let ultimoCodigoLeido = "";
+    let tiempoUltimoEscaneo = 0;
+    let totalRegistrados = 0;
+
+    // Control de Encendido / Apagado de Cámara
+    btnToggleCamara.addEventListener('click', () => {
+        if (!camaraActiva) {
+            encenderCamara();
+        } else {
+            apagarCamara();
         }
-    </script>
+    });
+
+    function encenderCamara() {
+        camaraActiva = true;
+        btnToggleCamara.innerText = "🛑 Apagar Cámara";
+        btnToggleCamara.classList.remove("btn-encender");
+        btnToggleCamara.classList.add("btn-apagar");
+        videoContainer.style.display = "block";
+        statusEl.innerText = "Buscando código de barras...";
+
+        codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+            if (result && camaraActiva) {
+                const codigoLeido = result.text.trim();
+                const ahora = Date.now();
+
+                // Evitar leer la misma credencial dos veces seguidas en menos de 3 segundos
+                if (codigoLeido !== ultimoCodigoLeido || (ahora - tiempoUltimoEscaneo > 3000)) {
+                    ultimoCodigoLeido = codigoLeido;
+                    tiempoUltimoEscaneo = ahora;
+
+                    procesarAsistencia(codigoLeido);
+                }
+            }
+        }).catch(err => {
+            console.error(err);
+            alert("No se pudo iniciar la cámara. Verifica los permisos.");
+            apagarCamara();
+        });
+    }
+
+    function apagarCamara() {
+        camaraActiva = false;
+        codeReader.reset(); // Detiene el flujo de video y apaga el LED de la cámara
+        btnToggleCamara.innerText = "📷 Encender Cámara";
+        btnToggleCamara.classList.remove("btn-apagar");
+        btnToggleCamara.classList.add("btn-encender");
+        videoContainer.style.display = "none";
+        statusEl.innerText = "Cámara apagada";
+    }
+
+    function procesarAsistencia(matricula) {
+        reproducirBip();
+        matriculaEl.innerText = matricula;
+        statusEl.innerText = "📤 Registrando asistencia...";
+
+        // Formatear fecha de YYYY-MM-DD a DD/MM/YYYY
+        const fechaRaw = document.getElementById('fecha').value;
+        let fechaFormateada = fechaRaw;
+        if (fechaRaw.includes("-")) {
+            const partes = fechaRaw.split("-");
+            fechaFormateada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        // Recopilar los valores actuales del formulario
+        const datosAsistencia = {
+            fecha: fechaFormateada,
+            periodo: document.getElementById('periodo').value,
+            alumnoMae: document.getElementById('alumnoMae').value,
+            campus: document.getElementById('campus').value,
+            materia: document.getElementById('materia').value,
+            formato: document.getElementById('formato').value,
+            matricula: matricula
+        };
+
+        // Agregar a la lista visual en pantalla
+        totalRegistrados++;
+        contadorEl.innerText = totalRegistrados;
+        const li = document.createElement('li');
+        const horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+        li.innerHTML = `<span><b>${matricula}</b> (${datosAsistencia.materia})</span> <span style="color:#888;">${horaActual}</span>`;
+        listaEl.prepend(li);
+
+        // Enviar a Google Sheets
+        fetch(WEB_APP_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(datosAsistencia)
+        })
+        .then(() => {
+            statusEl.innerText = "✅ ¡Guardado en Google Sheets!";
+            setTimeout(() => { 
+                if(camaraActiva) statusEl.innerText = "Listo para el siguiente alumno..."; 
+            }, 2000);
+        })
+        .catch(error => {
+            statusEl.innerText = "❌ Error de red al guardar";
+            console.error("Error:", error);
+        });
+    }
+
+    function reproducirBip() {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.1);
+    }
+</script>
+
 </body>
 </html>
