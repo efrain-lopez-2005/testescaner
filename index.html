@@ -3,69 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Escáner de Credenciales en Vivo</title>
+    <title>Escáner de Códigos Estilo Supermercado</title>
+    <!-- Importar la librería de escaneo en tiempo real (ZXing) -->
+    <script type="text/javascript" src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #f4f6f9; margin: 0; padding: 20px; }
-        h2 { color: #333; }
-        video { width: 100%; max-width: 400px; border-radius: 12px; border: 3px solid #007bff; background: #000; }
-        button { background: #28a745; color: white; border: none; padding: 14px 28px; font-size: 18px; border-radius: 50px; margin-top: 15px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-        button:active { background: #218838; transform: scale(0.98); }
-        #resultado { margin-top: 20px; text-align: left; background: white; padding: 15px; border-radius: 10px; display: inline-block; width: 90%; max-width: 400px; box-shadow: 0px 2px 10px rgba(0,0,0,0.1); }
+        body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: white; margin: 0; padding: 20px; }
+        h2 { color: #00ffcc; }
+        #video-container { width: 100%; max-width: 500px; margin: 0 auto; position: relative; border-radius: 12px; overflow: hidden; border: 3px solid #00ffcc; }
+        video { width: 100%; height: auto; display: block; }
+        #resultado-box { margin-top: 20px; background: #1e1e1e; padding: 15px; border-radius: 10px; display: inline-block; width: 90%; max-width: 500px; box-shadow: 0px 4px 10px rgba(0,0,0,0.5); }
+        .ultimo-codigo { font-size: 24px; color: #ffeb3b; font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
-    <h2>📷 Escáner Escolar</h2>
-    <video id="video" autoplay playsinline></video><br>
-    <button id="capturar">📸 Capturar y Leer</button>
-    <canvas id="canvas" style="display:none;"></canvas>
-    <div id="resultado"><b>Estado:</b> Enfoca el documento y presiona capturar.</div>
+
+    <h2>🛒 Escáner de Códigos Ultrarrápido</h2>
+    <p>Apunta el código de barras frente a la cámara. Se leerá automáticamente.</p>
+
+    <div id="video-container">
+        <video id="video"></video>
+    </div>
+
+    <div id="resultado-box">
+        <div>Último código detectado:</div>
+        <div id="codigoDetectado" class="ultimo-codigo">Esperando escaneo...</div>
+    </div>
 
     <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const capturarBtn = document.getElementById('capturar');
-        const resultadoDiv = document.getElementById('resultado');
-
-        // Pega aquí la URL de tu Apps Script Web App (/exec)
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzZlKhbToGWDv92tZn2MNU7TK3QxAhcZsqtA9MKVhPTmZOZZtprr9ylGqhFDOjdWwds/exec";
-
-        // Iniciar la cámara trasera del celular automáticamente
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-            .then(stream => { video.srcObject = stream; })
-            .catch(err => { alert("No se pudo acceder a la cámara: " + err); });
-
-        capturarBtn.addEventListener('click', async () => {
-            resultadoDiv.innerHTML = "⏳ Analizando foto... Por favor espera.";
+        window.addEventListener('load', function () {
+            const codeReader = new ZXing.BrowserBarcodeReader();
+            const elementoResultado = document.getElementById('codigoDetectado');
             
-            // Tomar la foto actual del video en vivo
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            const base64Image = canvas.toDataURL('image/jpeg');
-
-            try {
-                const response = await fetch(WEB_APP_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ image: base64Image })
-                });
-                const resJson = await response.json();
-                
-                if(resJson.status === "success") {
-                    const d = resJson.data;
-                    resultadoDiv.innerHTML = `<h3>✅ ¡Guardado en Google Sheets!</h3>` +
-                        `<p><b>Escuela:</b> ${d.escuela}</p>` +
-                        `<p><b>Nombre:</b> ${d.nombre}</p>` +
-                        `<p><b>Matrícula:</b> ${d.matricula}</p>` +
-                        `<p><b>Carrera:</b> ${d.carrera}</p>`;
-                } else {
-                    resultadoDiv.innerHTML = "❌ Error al procesar la imagen.";
+            // Usar la cámara trasera del dispositivo ('environment')
+            codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+                if (result) {
+                    // ¡Código detectado al instante!
+                    const codigoLeido = result.text;
+                    elementoResultado.innerText = codigoLeido;
+                    
+                    // Opcional: Reproducir un sonido corto de éxito estilo caja registradora
+                    reproducirBip();
+                    
+                    console.log("Código escaneado:", codigoLeido);
+                    
+                    // AQUÍ PUEDES MANDARLO A GOOGLE SHEETS AUTOMÁTICAMENTE
+                    // fetch('TU_URL_DE_APPS_SCRIPT?codigo=' + codigoLeido);
                 }
-            } catch (e) {
-                resultadoDiv.innerHTML = "❌ Error de conexión: " + e.message;
-            }
+                if (err && !(err instanceof ZXing.NotFoundException)) {
+                    // Errores menores de escaneo mientras busca el código se ignoran
+                }
+            }).catch(err => {
+                console.error("Error al iniciar la cámara: ", err);
+                alert("No se pudo acceder a la cámara. Revisa los permisos.");
+            });
         });
+
+        function reproducirBip() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Frecuencia del bip
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1); // Duración de 100 milisegundos
+        }
     </script>
 </body>
 </html>
