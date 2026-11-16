@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Escáner de Códigos Estilo Supermercado</title>
-    <!-- Importar la librería de escaneo en tiempo real (ZXing) -->
+    <title>Escáner Vinculado a Google Sheets</title>
+    <!-- Librería de códigos de barras -->
     <script type="text/javascript" src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: white; margin: 0; padding: 20px; }
@@ -13,48 +13,71 @@
         video { width: 100%; height: auto; display: block; }
         #resultado-box { margin-top: 20px; background: #1e1e1e; padding: 15px; border-radius: 10px; display: inline-block; width: 90%; max-width: 500px; box-shadow: 0px 4px 10px rgba(0,0,0,0.5); }
         .ultimo-codigo { font-size: 24px; color: #ffeb3b; font-weight: bold; margin-top: 5px; }
+        .status-envio { font-size: 14px; color: #00ffcc; margin-top: 8px; }
     </style>
 </head>
 <body>
 
-    <h2>🛒 Escáner de Códigos Ultrarrápido</h2>
-    <p>Apunta el código de barras frente a la cámara. Se leerá automáticamente.</p>
+    <h2>⚡ Escáner Rápido -> Google Sheets</h2>
+    <p>Apunta el código de barras. Se registrará automáticamente.</p>
 
     <div id="video-container">
         <video id="video"></video>
     </div>
 
     <div id="resultado-box">
-        <div>Último código detectado:</div>
-        <div id="codigoDetectado" class="ultimo-codigo">Esperando escaneo...</div>
+        <div>Último código escaneado:</div>
+        <div id="codigoDetectado" class="ultimo-codigo">Esperando...</div>
+        <div id="statusEnvio" class="status-envio"></div>
     </div>
 
     <script>
+        // ⚠️ PEGA AQUÍ LA URL DE TU APPS SCRIPT (/exec)
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzZlKhbToGWDv92tZn2MNU7TK3QxAhcZsqtA9MKVhPTmZOZZtprr9ylGqhFDOjdWwds/exec";
+
+        let ultimoCodigoLeido = "";
+        let tiempoUltimoEscaneo = 0;
+
         window.addEventListener('load', function () {
             const codeReader = new ZXing.BrowserBarcodeReader();
             const elementoResultado = document.getElementById('codigoDetectado');
+            const statusEnvio = document.getElementById('statusEnvio');
             
-            // Usar la cámara trasera del dispositivo ('environment')
             codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
                 if (result) {
-                    // ¡Código detectado al instante!
                     const codigoLeido = result.text;
-                    elementoResultado.innerText = codigoLeido;
+                    const ahora = Date.now();
                     
-                    // Opcional: Reproducir un sonido corto de éxito estilo caja registradora
-                    reproducirBip();
-                    
-                    console.log("Código escaneado:", codigoLeido);
-                    
-                    // AQUÍ PUEDES MANDARLO A GOOGLE SHEETS AUTOMÁTICAMENTE
-                    // fetch('TU_URL_DE_APPS_SCRIPT?codigo=' + codigoLeido);
-                }
-                if (err && !(err instanceof ZXing.NotFoundException)) {
-                    // Errores menores de escaneo mientras busca el código se ignoran
+                    // FILTRO ANTI-DUPLICADOS: Evita reenviar el mismo código si pasan menos de 3 segundos
+                    if (codigoLeido !== ultimoCodigoLeido || (ahora - tiempoUltimoEscaneo > 3000)) {
+                        ultimoCodigoLeido = codigoLeido;
+                        tiempoUltimoEscaneo = ahora;
+                        
+                        elementoResultado.innerText = codigoLeido;
+                        reproducirBip();
+                        
+                        // Enviar a Google Sheets de forma silenciosa (en segundo plano)
+                        statusEnvio.innerText = "📤 Guardando en Google Sheets...";
+                        
+                        fetch(WEB_APP_URL, {
+                            method: 'POST',
+                            mode: 'no-cors', // Evita bloqueos de seguridad del navegador
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ codigo: codigoLeido })
+                        })
+                        .then(() => {
+                            statusEnvio.innerText = "✅ ¡Guardado con éxito!";
+                            setTimeout(() => { statusEnvio.innerText = ""; }, 2000);
+                        })
+                        .catch(error => {
+                            statusEnvio.innerText = "❌ Error al guardar";
+                            console.error("Error:", error);
+                        });
+                    }
                 }
             }).catch(err => {
-                console.error("Error al iniciar la cámara: ", err);
-                alert("No se pudo acceder a la cámara. Revisa los permisos.");
+                console.error("Error de cámara: ", err);
+                alert("No se pudo iniciar la cámara.");
             });
         });
 
@@ -63,12 +86,12 @@
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
             oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Frecuencia del bip
+            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
             gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
             oscillator.connect(gainNode);
             gainNode.connect(audioCtx.destination);
             oscillator.start();
-            oscillator.stop(audioCtx.currentTime + 0.1); // Duración de 100 milisegundos
+            oscillator.stop(audioCtx.currentTime + 0.1);
         }
     </script>
 </body>
