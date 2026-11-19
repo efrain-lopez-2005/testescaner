@@ -20,10 +20,11 @@
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .form-group { margin-bottom: 12px; text-align: left; }
         label { display: block; font-size: 13px; color: #bbb; margin-bottom: 4px; font-weight: 600; }
-        select, input[type="date"], input[type="email"], input[type="password"] { 
+        select, input[type="date"], input[type="email"], input[type="password"], input[type="text"] { 
             width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: white; font-size: 15px; box-sizing: border-box; 
         }
         select:focus, input:focus { outline: none; border-color: var(--accent); }
+        .mae-input { margin-bottom: 8px; }
         
         /* Botones */
         .btn { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; }
@@ -32,18 +33,25 @@
         .btn-encender { background: #28a745; color: white; margin-bottom: 12px; }
         .btn-apagar { background: #dc3545; color: white; margin-bottom: 12px; }
         .btn-salir { background: transparent; border: 1px solid #555; color: #aaa; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; }
+        .btn-modo { background: transparent; border: 1px dashed #666; color: #ccc; padding: 9px; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer; width: 100%; }
+        .btn-modo:hover { border-color: var(--accent); color: var(--accent); }
         
+        /* Sesión */
+        .info-sesion { font-size: 12px; color: #9ad; background: #252525; border-radius: 8px; padding: 8px 10px; line-height: 1.5; min-height: 18px; white-space: pre-line; }
+        .badge-modo { display: inline-block; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #0055a5; color: #fff; margin-bottom: 10px; }
+        .badge-modo.manual { background: #b36b00; }
+
         /* Video en vivo */
         #video-container { width: 100%; border-radius: 10px; overflow: hidden; border: 2px solid var(--accent); display: none; background: #000; position: relative; }
         video { width: 100%; height: auto; display: block; }
         
         /* Resultados y Lista */
         .resultado-actual { text-align: center; padding: 10px; background: #252525; border-radius: 8px; margin-top: 10px; }
-        .matricula-txt { font-size: 26px; color: #ffeb3b; font-weight: bold; letter-spacing: 1px; }
+        .matricula-txt { font-size: 26px; color: #ffeb3b; font-weight: bold; letter-spacing: 1px; word-break: break-all; }
         .status-txt { font-size: 14px; color: var(--accent); margin-top: 4px; min-height: 20px; }
         
-        ul { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; }
-        li { padding: 8px 10px; border-bottom: 1px solid #333; font-size: 14px; display: flex; justify-content: space-between; }
+        ul { list-style: none; padding: 0; margin: 0; max-height: 220px; overflow-y: auto; }
+        li { padding: 8px 10px; border-bottom: 1px solid #333; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
         li:last-child { border-bottom: none; }
         .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; color: #aaa; }
     </style>
@@ -80,62 +88,70 @@
 
         <!-- DATOS DE LA SESIÓN -->
         <div class="card">
-            <div class="grid-2">
-                <div class="form-group">
-                    <label for="fecha">Fecha:</label>
-                    <input type="date" id="fecha" required>
-                </div>
-                <div class="form-group">
-                    <label for="periodo">Periodo:</label>
-                    <select id="periodo">
-                        <option value="1P">1P</option>
-                        <option value="2P">2P</option>
-                        <option value="3P">3P</option>
-                    </select>
-                </div>
-            </div>
+            <span id="badgeModo" class="badge-modo">📅 Agendada</span>
 
+            <!-- Fecha: se usa en ambos modos -->
             <div class="form-group">
-                <label for="alumnoMae">Alumno MAE:</label>
-                <select id="alumnoMae">
-                    <!-- 👇 EDITA AQUÍ TU LISTA DE ALUMNOS MAE 👇 -->
-                    <option value="Efraín">Efraín</option>
-                    <option value="Ana García">Ana García</option>
-                    <option value="Carlos López">Carlos López</option>
-                    <option value="Sofía Martínez">Sofía Martínez</option>
-                </select>
+                <label for="fecha">Fecha:</label>
+                <input type="date" id="fecha" required>
             </div>
 
-            <div class="grid-2">
-                <div class="form-group">
-                    <label for="campus">Campus:</label>
-                    <select id="campus">
-                        <option value="MTY">MTY</option>
-                        <option value="QRO">QRO</option>
-                        <option value="GDL">GDL</option>
-                        <option value="MEX">MEX</option>
-                    </select>
+            <!-- MODO AGENDADO (por defecto) -->
+            <div id="bloqueAgendado">
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <label for="selAsesoria">Asesoría Grupal:</label>
+                    <select id="selAsesoria"></select>
+                </div>
+                <div id="infoSesion" class="info-sesion"></div>
+            </div>
+
+            <!-- MODO MANUAL -->
+            <div id="bloqueManual" style="display: none;">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="mPeriodo">Periodo:</label>
+                        <select id="mPeriodo">
+                            <option value="1P">1P</option>
+                            <option value="2P">2P</option>
+                            <option value="3P">3P</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="mArea">Área:</label>
+                        <select id="mArea">
+                            <option value="ING">ING</option>
+                            <option value="NEG">NEG</option>
+                            <option value="CIS">CIS</option>
+                            <option value="SLD">SLD</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="mClave">Clave:</label>
+                        <input type="text" id="mClave" placeholder="Ej. F1001" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="mFormato">Formato:</label>
+                        <select id="mFormato">
+                            <option value="Presencial">Presencial</option>
+                            <option value="Virtual">Virtual</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label for="formato">Formato:</label>
-                    <select id="formato">
-                        <option value="Presencial">Presencial</option>
-                        <option value="Virtual">Virtual</option>
-                    </select>
+                    <label for="mMateria">Materia:</label>
+                    <input type="text" id="mMateria" placeholder="Nombre de la materia" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="mMae1">Matrículas MAE (de 1 a 3):</label>
+                    <input type="text" id="mMae1" class="mae-input" placeholder="MAE 1 (obligatoria) Ej. A01234567" autocomplete="off" autocapitalize="characters">
+                    <input type="text" id="mMae2" class="mae-input" placeholder="MAE 2 (opcional)" autocomplete="off" autocapitalize="characters">
+                    <input type="text" id="mMae3" class="mae-input" placeholder="MAE 3 (opcional)" autocomplete="off" autocapitalize="characters">
                 </div>
             </div>
 
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="materia">Materia:</label>
-                <select id="materia">
-                    <!-- 👇 EDITA AQUÍ TU LISTA DE MATERIAS 👇 -->
-                    <option value="Física I">Física I</option>
-                    <option value="Matemáticas I">Matemáticas I</option>
-                    <option value="Ecuaciones Diferenciales">Ecuaciones Diferenciales</option>
-                    <option value="Estática">Estática</option>
-                    <option value="Programación">Programación</option>
-                </select>
-            </div>
+            <button id="btnModo" class="btn-modo" style="margin-top: 6px;">✍️ Sesión no agendada (llenar manualmente)</button>
         </div>
 
         <!-- ESCÁNER EN VIVO -->
@@ -153,9 +169,9 @@
             </div>
         </div>
 
-        <!-- HISTORIAL DE LA SESIÓN -->
+        <!-- HISTORIAL DE LA ASESORÍA ACTUAL -->
         <div class="card">
-            <label style="margin-bottom: 8px;">Asistentes registrados en esta sesión (<span id="contador">0</span>):</label>
+            <label style="margin-bottom: 8px;">Asistentes registrados en esta asesoría (<span id="contador">0</span>):</label>
             <ul id="listaAsistentes"></ul>
         </div>
     </div>
@@ -165,6 +181,58 @@
     // ⚠️ PEGA AQUÍ LA URL DE TU APPS SCRIPT (/exec)
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzZlKhbToGWDv92tZn2MNU7TK3QxAhcZsqtA9MKVhPTmZOZZtprr9ylGqhFDOjdWwds/exec";
 
+    /* =====================================================================
+     *  📅 CATÁLOGO DE ASESORÍAS AGENDADAS  (EDITA SOLO ESTA SECCIÓN)
+     * =====================================================================
+     *  Agrega un bloque { ... }, por cada asesoría. Reglas:
+     *   - fecha         → "DD/MM/YYYY" con ceros (ej. "05/03/2026")
+     *   - claveMateria  → clave de la materia (ej. "F1001")
+     *   - nombreMateria → nombre completo de la materia
+     *   - area          → "ING", "NEG", "CIS" o "SLD"
+     *   - periodo       → "1P", "2P" o "3P"
+     *   - horaInicio    → "HH:MM" en 24 h (ej. "14:00")
+     *   - horaFin       → "HH:MM" en 24 h (ej. "15:30")
+     *   - aula          → salón o lugar (ej. "Aula 3-204")
+     *   - maes          → lista de MAEs que dan la asesoría (de 1 a 3):
+     *                     [ { matricula: "A01234567", nombre: "Nombre Apellido" },
+     *                       { matricula: "A07654321", nombre: "Otro Nombre" } ]
+     *  Si hay más de un MAE, en la hoja se guardan juntos en la misma celda
+     *  separados por " / " (se cambia en SEPARADOR_MAES de Codigo.gs).
+     *  No olvides la coma entre objetos y comillas en todos los valores.
+     *  Las asesorías agendadas siempre se guardan con formato "Presencial".
+     * ===================================================================== */
+    const ASESORIAS_AGENDADAS = [
+        // --- EJEMPLOS (reemplázalos por tus datos reales) ---
+        {   // Asesoría con 1 MAE
+            fecha: "19/11/2026", claveMateria: "F1001", nombreMateria: "Física I",
+            area: "ING", periodo: "3P", horaInicio: "14:00", horaFin: "15:30",
+            aula: "Aula 3-204",
+            maes: [
+                { matricula: "A01234567", nombre: "Efraín Ejemplo" }
+            ]
+        },
+        {   // Asesoría con 2 MAEs
+            fecha: "19/11/2026", claveMateria: "M1002", nombreMateria: "Matemáticas I",
+            area: "ING", periodo: "3P", horaInicio: "16:00", horaFin: "17:30",
+            aula: "Aula 2-110",
+            maes: [
+                { matricula: "A07654321", nombre: "Ana García" },
+                { matricula: "A05550001", nombre: "Luis Pérez" }
+            ]
+        },
+        {   // Asesoría con 3 MAEs
+            fecha: "20/11/2026", claveMateria: "N2005", nombreMateria: "Contabilidad Financiera",
+            area: "NEG", periodo: "3P", horaInicio: "10:00", horaFin: "11:30",
+            aula: "Aula 5-001",
+            maes: [
+                { matricula: "A09998888", nombre: "Carlos López" },
+                { matricula: "A09998889", nombre: "Sofía Martínez" },
+                { matricula: "A09998890", nombre: "Diego Ramos" }
+            ]
+        }
+    ];
+
+    // --- Elementos de login ---
     const pantallaLogin = document.getElementById('pantallaLogin');
     const pantallaApp = document.getElementById('pantallaApp');
     const loginCorreo = document.getElementById('loginCorreo');
@@ -251,22 +319,201 @@
         pantallaLogin.style.display = "none";
         pantallaApp.style.display = "block";
         usuarioActivoTxt.innerText = "Sesión: " + correo;
-        document.getElementById('fecha').valueAsDate = new Date();
+        // Fecha de hoy en hora LOCAL (sin desfase UTC)
+        fechaEl.value = hoyISOLocal();
+        renderAsesorias();
     }
 
-    // --- LÓGICA DEL ESCÁNER EN VIVO ---
+    // =====================================================================
+    //  FECHAS Y SESIÓN (modo agendado / modo manual)
+    // =====================================================================
+    const MAX_MAES = 3;
+
+    const fechaEl = document.getElementById('fecha');
+    const selAsesoria = document.getElementById('selAsesoria');
+    const infoSesion = document.getElementById('infoSesion');
+    const bloqueAgendado = document.getElementById('bloqueAgendado');
+    const bloqueManual = document.getElementById('bloqueManual');
+    const btnModo = document.getElementById('btnModo');
+    const badgeModo = document.getElementById('badgeModo');
+    const camposManual = ['mPeriodo', 'mArea', 'mClave', 'mFormato', 'mMateria', 'mMae1', 'mMae2', 'mMae3']
+        .map(id => document.getElementById(id));
+
+    let modoManual = false;
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    // Hoy en formato YYYY-MM-DD usando la hora local del dispositivo
+    function hoyISOLocal() {
+        const d = new Date();
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    }
+
+    // "2026-11-19" -> "19/11/2026" (sin pasar por Date, así no hay desfases)
+    function isoADMY(iso) {
+        if (!iso || iso.indexOf('-') === -1) return "";
+        const p = iso.split('-');
+        return p[2] + '/' + p[1] + '/' + p[0];
+    }
+
+    function asesoriasDelDia(fechaDMY) {
+        return ASESORIAS_AGENDADAS
+            .map((a, i) => ({ a: a, i: i }))
+            .filter(x => x.a.fecha === fechaDMY)
+            .sort((x, y) => x.a.horaInicio.localeCompare(y.a.horaInicio));
+    }
+
+    // Llena el <select> con las asesorías de la fecha elegida
+    function renderAsesorias() {
+        const fechaDMY = isoADMY(fechaEl.value);
+        const lista = asesoriasDelDia(fechaDMY);
+        selAsesoria.innerHTML = "";
+
+        if (lista.length === 0) {
+            const o = document.createElement('option');
+            o.value = "";
+            o.textContent = fechaDMY ? "Sin asesorías agendadas este día" : "Elige una fecha";
+            selAsesoria.appendChild(o);
+            selAsesoria.disabled = true;
+        } else {
+            const o = document.createElement('option');
+            o.value = "";
+            o.textContent = "Selecciona una asesoría…";
+            selAsesoria.appendChild(o);
+            lista.forEach(x => {
+                const op = document.createElement('option');
+                op.value = String(x.i);
+                op.textContent = x.a.horaInicio + "-" + x.a.horaFin + " · " + x.a.nombreMateria + " · " + x.a.aula;
+                selAsesoria.appendChild(op);
+            });
+            selAsesoria.disabled = false;
+        }
+        actualizarInfoSesion();
+    }
+
+    // Muestra los datos cargados automáticamente de la asesoría elegida
+    function actualizarInfoSesion() {
+        const idx = selAsesoria.value;
+        if (idx === "") {
+            infoSesion.textContent = "Elige una asesoría para cargar sus datos.";
+        } else {
+            const a = ASESORIAS_AGENDADAS[Number(idx)];
+            const maesTxt = a.maes.slice(0, MAX_MAES)
+                .map(m => m.nombre + " (" + m.matricula + ")").join(", ");
+            infoSesion.textContent =
+                a.claveMateria + " · " + a.nombreMateria + " (" + a.area + ", " + a.periodo + ")\n" +
+                a.aula + " · " + a.horaInicio + "-" + a.horaFin + "\n" +
+                "MAE: " + maesTxt;
+        }
+        renderHistorial();
+    }
+
+    fechaEl.addEventListener('change', renderAsesorias);
+    selAsesoria.addEventListener('change', actualizarInfoSesion);
+    camposManual.forEach(el => {
+        el.addEventListener('input', renderHistorial);
+        el.addEventListener('change', renderHistorial);
+    });
+
+    btnModo.addEventListener('click', () => {
+        modoManual = !modoManual;
+        bloqueAgendado.style.display = modoManual ? "none" : "block";
+        bloqueManual.style.display = modoManual ? "block" : "none";
+        badgeModo.textContent = modoManual ? "✍️ Manual" : "📅 Agendada";
+        badgeModo.classList.toggle('manual', modoManual);
+        btnModo.textContent = modoManual
+            ? "📅 Volver a asesorías agendadas"
+            : "✍️ Sesión no agendada (llenar manualmente)";
+        renderHistorial();
+    });
+
+    // Devuelve los datos de la sesión actual, o { error } si falta algo
+    function obtenerSesionActual() {
+        const fecha = isoADMY(fechaEl.value);
+        if (!fecha) return { error: "Elige una fecha." };
+
+        if (!modoManual) {
+            const idx = selAsesoria.value;
+            if (idx === "") return { error: "Selecciona una asesoría grupal antes de escanear." };
+            const a = ASESORIAS_AGENDADAS[Number(idx)];
+            return {
+                fecha: fecha,
+                periodo: a.periodo,
+                maes: a.maes.slice(0, MAX_MAES).map(m => ({ matricula: m.matricula, nombre: m.nombre })),
+                area: a.area,
+                claveMateria: a.claveMateria,
+                materia: a.nombreMateria,
+                formato: "Presencial"
+            };
+        }
+
+        // Manual: hasta 3 matrículas MAE (sin repetir). El nombre se envía vacío "".
+        const matriculas = ['mMae1', 'mMae2', 'mMae3']
+            .map(id => document.getElementById(id).value.trim().toUpperCase())
+            .filter(v => v !== "")
+            .filter((v, i, arr) => arr.indexOf(v) === i);
+
+        const s = {
+            fecha: fecha,
+            periodo: document.getElementById('mPeriodo').value,
+            maes: matriculas.map(m => ({ matricula: m, nombre: "" })),
+            area: document.getElementById('mArea').value,
+            claveMateria: document.getElementById('mClave').value.trim(),
+            materia: document.getElementById('mMateria').value.trim(),
+            formato: document.getElementById('mFormato').value
+        };
+        if (!s.claveMateria || !s.materia || s.maes.length === 0) {
+            return { error: "Completa Clave, Materia y al menos 1 Matrícula MAE." };
+        }
+        return s;
+    }
+
+    // Identificador único de la asesoría (para historial y duplicados)
+    function claveSesion(s) {
+        return [s.fecha, s.periodo, s.area, s.claveMateria, s.maes.map(m => m.matricula).join('+')].join('|');
+    }
+
+    // =====================================================================
+    //  HISTORIAL POR ASESORÍA (puede haber muchos alumnos)
+    // =====================================================================
+    const listaEl = document.getElementById('listaAsistentes');
+    const contadorEl = document.getElementById('contador');
+    const registrosPorSesion = {};   // claveSesion -> [{ matricula, materia, hora }]
+    const enEnvio = new Set();       // claveSesion|matricula mientras se guarda
+
+    function renderHistorial() {
+        const s = obtenerSesionActual();
+        const registros = s.error ? [] : (registrosPorSesion[claveSesion(s)] || []);
+        contadorEl.innerText = registros.length;
+        listaEl.innerHTML = "";
+        registros.slice().reverse().forEach(r => {
+            // textContent (no innerHTML) para que un código raro no inyecte HTML
+            const li = document.createElement('li');
+            const izq = document.createElement('span');
+            const negrita = document.createElement('b');
+            negrita.textContent = r.matricula;
+            izq.appendChild(negrita);
+            const der = document.createElement('span');
+            der.style.color = "#888";
+            der.textContent = r.hora;
+            li.appendChild(izq);
+            li.appendChild(der);
+            listaEl.appendChild(li);
+        });
+    }
+
+    // =====================================================================
+    //  LÓGICA DEL ESCÁNER EN VIVO
+    // =====================================================================
     const codeReader = new ZXing.BrowserBarcodeReader();
     const btnToggleCamara = document.getElementById('btnToggleCamara');
     const videoContainer = document.getElementById('video-container');
     const matriculaEl = document.getElementById('matriculaDetectada');
     const statusEl = document.getElementById('statusEnvio');
-    const listaEl = document.getElementById('listaAsistentes');
-    const contadorEl = document.getElementById('contador');
 
     let camaraActiva = false;
     let ultimoCodigoLeido = "";
     let tiempoUltimoEscaneo = 0;
-    let totalRegistrados = 0;
 
     btnToggleCamara.addEventListener('click', () => {
         if (!camaraActiva) {
@@ -322,27 +569,40 @@
     }
 
     async function procesarAsistencia(matricula) {
-        reproducirBip();
         matriculaEl.innerText = matricula;
-        statusEl.innerText = "📤 Guardando registro...";
 
-        const fechaRaw = document.getElementById('fecha').value;
-        let fechaFormateada = fechaRaw;
-        if (fechaRaw.includes("-")) {
-            const partes = fechaRaw.split("-");
-            fechaFormateada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+        // Validar que la sesión esté completa antes de enviar
+        const sesion = obtenerSesionActual();
+        if (sesion.error) {
+            statusEl.innerText = "⚠️ " + sesion.error;
+            return;
         }
+
+        // Evitar registrar dos veces al mismo alumno en la misma asesoría
+        const kSesion = claveSesion(sesion);
+        const kEnvio = kSesion + "|" + matricula.toUpperCase();
+        const yaRegistrado = (registrosPorSesion[kSesion] || [])
+            .some(r => r.matricula.toUpperCase() === matricula.toUpperCase());
+        if (yaRegistrado || enEnvio.has(kEnvio)) {
+            statusEl.innerText = "⚠️ Ya registrado en esta asesoría";
+            return;
+        }
+        enEnvio.add(kEnvio);
+
+        reproducirBip();
+        statusEl.innerText = "📤 Guardando registro...";
 
         const datosAsistencia = {
             accion: "registrar",
             correo: localStorage.getItem('app_correo'),
             clave: localStorage.getItem('app_clave'),
-            fecha: fechaFormateada,
-            periodo: document.getElementById('periodo').value,
-            alumnoMae: document.getElementById('alumnoMae').value,
-            campus: document.getElementById('campus').value,
-            materia: document.getElementById('materia').value,
-            formato: document.getElementById('formato').value,
+            fecha: sesion.fecha,
+            periodo: sesion.periodo,
+            maes: sesion.maes,                   // hasta 3: [{ matricula, nombre }]
+            area: sesion.area,
+            claveMateria: sesion.claveMateria,   // (no confundir con "clave" de acceso)
+            materia: sesion.materia,
+            formato: sesion.formato,
             matricula: matricula
         };
 
@@ -356,13 +616,13 @@
             const resJson = await response.json();
 
             if (resJson.status === "success") {
-                totalRegistrados++;
-                contadorEl.innerText = totalRegistrados;
-                const li = document.createElement('li');
-                const horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-                li.innerHTML = `<span><b>${matricula}</b> (${datosAsistencia.materia})</span> <span style="color:#888;">${horaActual}</span>`;
-                listaEl.prepend(li);
-
+                if (!registrosPorSesion[kSesion]) registrosPorSesion[kSesion] = [];
+                registrosPorSesion[kSesion].push({
+                    matricula: matricula,
+                    materia: sesion.materia,
+                    hora: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})
+                });
+                renderHistorial();
                 statusEl.innerText = "✅ ¡Guardado en Google Sheets!";
             } else {
                 statusEl.innerText = "❌ Rechazado: " + resJson.message;
@@ -370,6 +630,8 @@
         } catch (error) {
             statusEl.innerText = "❌ Error de conexión al guardar";
             console.error("Error:", error);
+        } finally {
+            enEnvio.delete(kEnvio);
         }
 
         setTimeout(() => { 
@@ -377,17 +639,22 @@
         }, 2000);
     }
 
+    // Un solo AudioContext reutilizado (crear uno nuevo en cada bip termina fallando en móviles)
+    let audioCtx = null;
     function reproducirBip() {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.1);
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        } catch (_) {}
     }
     
 </script>
